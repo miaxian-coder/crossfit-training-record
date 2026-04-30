@@ -1,0 +1,65 @@
+@import url("https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;600&display=swap");
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html {
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
+  }
+
+  :root {
+    --background: 240 4% 5%;
+    --foreground: 0 0% 94%;
+    --card: 240 4% 9%;
+    --card-foreground: 0 0% 94%;
+    --primary: 359 100% 65%;
+    --primary-foreground: 240 4% 5%;
+    --secondary: 214 84% 56%;
+    --secondary-foreground: 0 0% 100%;
+    --muted: 240 4% 13%;
+    --muted-foreground: 225 9% 66%;
+    --accent: 214 84% 56%;
+    --accent-foreground: 0 0% 100%;
+    --destructive: 359 100% 65%;
+    --destructive-foreground: 240 4% 5%;
+    --border: 240 4% 24%;
+    --input: 240 4% 20%;
+    --ring: 359 100% 65%;
+    --radius: 0.5rem;
+  }
+
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground antialiased;
+    font-weight: 400;
+    overflow-x: hidden;
+    background:
+      linear-gradient(rgba(255, 255, 255, 0.035) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(255, 255, 255, 0.035) 1px, transparent 1px),
+      radial-gradient(circle at 18% 8%, rgba(255, 77, 79, 0.2), transparent 24rem),
+      radial-gradient(circle at 88% 5%, rgba(47, 128, 237, 0.16), transparent 22rem),
+      linear-gradient(135deg, rgba(255, 77, 79, 0.06), transparent 26rem),
+      hsl(var(--background));
+    background-size: 34px 34px, 34px 34px, auto, auto, auto, auto;
+  }
+
+  button,
+  input,
+  select,
+  textarea {
+    touch-action: manipulation;
+  }
+}
+
+.line-clamp-2 {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
