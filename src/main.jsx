@@ -894,8 +894,14 @@ function DataPage({ trainingRecords, setTrainingRecords, prRecords, setPrRecords
     setAuthBusy("passwordSignUp")
     setMessage("正在注册账号...")
     try {
-      const { error } = await sync.signUpWithPassword(email.trim(), password)
-      setMessage(error ? `注册失败：${error.message}` : "账号已创建。若已关闭 Confirm email，可以直接点密码登录。")
+      const { data, error } = await sync.signUpWithPassword(email.trim(), password)
+      if (error) {
+        setMessage(`注册失败：${error.message}`)
+      } else if (data?.session) {
+        setMessage("账号已创建并登录，正在同步云端数据。")
+      } else {
+        setMessage("账号已创建，请先到邮箱点击确认链接；确认后回到这里点密码登录。")
+      }
     } catch (error) {
       setMessage(error instanceof Error ? `注册失败：${error.message}` : "注册失败，请检查网络。")
     } finally {
@@ -1037,6 +1043,12 @@ with check ((select auth.uid()) is not null and (select auth.uid()) = user_id);`
                 <p className="text-sm leading-6 text-muted-foreground">
                   如果 QQ 邮箱收不到登录链接，建议在 Supabase 关闭 Confirm email 后使用密码注册/登录。
                 </p>
+                {message && (
+                  <div className="rounded-md border border-white/12 bg-card px-3 py-2 text-sm text-muted-foreground ring-1 ring-white/5">
+                    {message}
+                  </div>
+                )}
+
               </div>
             )}
 
@@ -1069,11 +1081,6 @@ with check ((select auth.uid()) is not null and (select auth.uid()) = user_id);`
             <Metric label="PR 记录" value={prRecords.length} />
           </div>
 
-          {message && (
-            <div className="rounded-md border border-white/12 bg-card px-3 py-2 text-sm text-muted-foreground ring-1 ring-white/5">
-              {message}
-            </div>
-          )}
         </CardContent>
       </Card>
     </section>
