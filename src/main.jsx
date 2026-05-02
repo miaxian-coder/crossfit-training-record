@@ -40,8 +40,11 @@ import { cn } from "@/lib/utils"
 const TRAINING_KEY = "crossfit.trainingRecords.v1"
 const PR_KEY = "crossfit.prRecords.v1"
 const STORE_TABLE = "crossfit_stores"
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
-const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY
+const supabaseUrl = (import.meta.env.VITE_SUPABASE_URL || "")
+  .trim()
+  .replace(/\/rest\/v1\/?$/, "")
+  .replace(/\/$/, "")
+const supabaseAnonKey = (import.meta.env.VITE_SUPABASE_ANON_KEY || "").trim()
 const supabaseConfigError =
   supabaseUrl && !supabaseUrl.endsWith(".supabase.co")
     ? "VITE_SUPABASE_URL 需要是完整地址，例如 https://项目ID.supabase.co"
