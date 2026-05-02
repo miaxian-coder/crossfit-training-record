@@ -53,6 +53,10 @@ const supabase =
   supabaseUrl && supabaseAnonKey && !supabaseConfigError
     ? createClient(supabaseUrl, supabaseAnonKey)
     : null
+const getAuthRedirectUrl = () => {
+  if (typeof window === "undefined") return undefined
+  return new URL(".", window.location.href).toString()
+}
 
 const workoutTypes = ["WOD", "力量", "技术", "有氧", "Rest Day"]
 const defaultMovements = [
@@ -266,7 +270,7 @@ function useSyncedStore() {
     if (!supabase) return { error: new Error("Supabase is not configured") }
     return supabase.auth.signInWithOtp({
       email,
-      options: { emailRedirectTo: window.location.origin },
+      options: { emailRedirectTo: getAuthRedirectUrl() },
     })
   }
 
@@ -280,7 +284,7 @@ function useSyncedStore() {
     return supabase.auth.signUp({
       email,
       password,
-      options: { emailRedirectTo: window.location.origin },
+      options: { emailRedirectTo: getAuthRedirectUrl() },
     })
   }
 
