@@ -59,6 +59,7 @@ const getAuthRedirectUrl = () => {
 }
 
 const workoutTypes = ["WOD", "力量", "技术", "有氧", "Rest Day"]
+const restType = "Rest Day"
 const defaultMovements = [
   { movement: "实力推", category: "推举" },
   { movement: "借力推", category: "推举" },
@@ -80,6 +81,10 @@ const uid = () => `${Date.now()}-${Math.random().toString(16).slice(2)}`
 const nowISO = () => new Date().toISOString()
 const pad = (num) => String(num).padStart(2, "0")
 const formatMonth = (date) => `${date.getFullYear()}-${pad(date.getMonth() + 1)}`
+const formatMonthLabel = (monthKey) => {
+  const [year, month] = monthKey.split("-")
+  return `${year}年${Number(month)}月`
+}
 
 function loadRecords(key) {
   try {
@@ -99,6 +104,52 @@ function formatDisplayDate(dateString) {
     day: "numeric",
     weekday: "short",
   })
+}
+
+function getWorkoutTypes(record) {
+  const raw = record?.types ?? record?.type
+  if (Array.isArray(raw)) return raw.filter(Boolean)
+  if (typeof raw === "string" && raw.includes("/")) return raw.split("/").map((item) => item.trim()).filter(Boolean)
+  if (typeof raw === "string" && raw) return [raw]
+  return []
+}
+
+function getWorkoutTypeLabel(record) {
+  const types = getWorkoutTypes(record)
+  return types.length ? types.join(" / ") : "未分类"
+}
+
+function getWorkoutPlanParts(record) {
+  if (record?.planParts && typeof record.planParts === "object") {
+    return record.planParts
+  }
+  const types = getWorkoutTypes(record)
+  if (record?.plan && types.length) return { [types[0]]: record.plan }
+  if (record?.plan) return { 训练计划: record.plan }
+  return {}
+}
+
+function flattenPlanParts(parts, types) {
+  return types
+    .map((type) => {
+      const value = parts?.[type]?.trim()
+      return value ? `${type}\n${value}` : ""
+    })
+    .filter(Boolean)
+    .join("\n\n")
+}
+
+function normalizeWorkoutForm(record) {
+  const base = record || blankWorkout(todayISO())
+  const types = getWorkoutTypes(base)
+  const normalizedTypes = types.length ? types : ["WOD"]
+  const planParts = getWorkoutPlanParts({ ...base, type: normalizedTypes })
+  return {
+    ...base,
+    type: normalizedTypes,
+    planParts,
+    plan: base.plan || flattenPlanParts(planParts, normalizedTypes),
+  }
 }
 
 function useLocalCollection(key) {
@@ -336,10 +387,13 @@ function App() {
   const { trainingRecords, setTrainingRecords, prRecords, setPrRecords } = sync
 
   const stats = useMemo(() => {
-    const completed = trainingRecords.filter((item) => item.type !== "Rest Day").length
-    const rest = trainingRecords.filter((item) => item.type === "Rest Day").length
-    const prCount = prRecords.length
-    return { completed, rest, prCount }
+    const monthKey = todayISO().slice(0, 7)
+    const monthlyTraining = trainingRecords.filter((item) => item.date?.startsWith(monthKey))
+    const monthlyPr = prRecords.filter((item) => item.date?.startsWith(monthKey))
+    const completed = monthlyTraining.filter((item) => !getWorkoutTypes(item).includes(restType)).length
+    const rest = monthlyTraining.filter((item) => getWorkoutTypes(item).includes(restType)).length
+    const prCount = monthlyPr.length
+    return { completed, rest, prCount, monthLabel: formatMonthLabel(monthKey) }
   }, [trainingRecords, prRecords])
 
   return (
@@ -399,10 +453,18 @@ function AppShell({ children, page, onPageChange, stats, sync }) {
               {sync.session?.user?.email || "手机/桌面共用"}
             </span>
           </button>
-          <div className="grid grid-cols-3 gap-2">
-            <Metric label="训练" value={stats.completed} />
-            <Metric label="休息" value={stats.rest} />
-            <Metric label="PR" value={stats.prCount} />
+          <div className="rounded-lg border border-white/12 bg-card p-2 ring-1 ring-white/5">
+            <div className="mb-2 flex items-center justify-between px-1">
+              <span className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+                当月概览
+              </span>
+              <span className="text-sm font-semibold text-foreground">{stats.monthLabel}</span>
+            </div>
+            <div className="grid grid-cols-3 gap-2">
+              <Metric label="训练" value={stats.completed} compact />
+              <Metric label="休息" value={stats.rest} compact />
+              <Metric label="PR" value={stats.prCount} compact />
+            </div>
           </div>
         </div>
       </header>
@@ -450,9 +512,9 @@ function AppShell({ children, page, onPageChange, stats, sync }) {
   )
 }
 
-function Metric({ label, value }) {
+function Metric({ label, value, compact = false }) {
   return (
-    <div className="rounded-lg border border-white/12 bg-card px-3 py-2 ring-1 ring-white/5">
+    <div className={cn("rounded-lg border border-white/12 bg-card px-3 py-2 ring-1 ring-white/5", compact && "bg-muted/30")}>
       <div className="font-display text-[1.65rem] font-semibold leading-none text-secondary sm:text-3xl">{value}</div>
       <div className="text-xs font-semibold text-muted-foreground">{label}</div>
     </div>
@@ -602,24 +664,21 @@ function CalendarPage({ records, setRecords }) {
                   key={day.iso}
                   onClick={() => setSelectedDate(day.iso)}
                   className={cn(
-                    "relative aspect-square min-h-0 touch-manipulation rounded-md border border-white/12 bg-card p-1.5 text-left ring-1 ring-white/5 transition hover:border-primary sm:aspect-auto sm:min-h-24 sm:p-2",
+                    "flex min-h-14 touch-manipulation flex-col justify-between rounded-md border border-white/12 bg-card p-1.5 text-left ring-1 ring-white/5 transition hover:border-primary sm:min-h-24 sm:p-2",
                     !day.inMonth && "opacity-35",
                     day.iso === todayISO() && "border-2 border-secondary",
                     selectedDate === day.iso && "border-primary bg-primary text-primary-foreground",
                   )}
                 >
-                  <span className="text-sm font-semibold">{day.date.getDate()}</span>
+                  <span className="block text-sm font-semibold leading-none">{day.date.getDate()}</span>
                   {record && (
                     <span
+                      aria-label={getWorkoutTypeLabel(record)}
                       className={cn(
-                        "absolute inset-x-1 bottom-1 truncate rounded-sm px-1 py-1 text-[9px] font-semibold leading-none sm:text-[10px]",
-                        selectedDate === day.iso
-                          ? "bg-background/30 text-primary-foreground"
-                          : "bg-primary/15 text-primary",
+                        "mt-auto block h-1.5 w-full rounded-full",
+                        selectedDate === day.iso ? "bg-background/30" : "bg-primary/80",
                       )}
-                    >
-                      {record.type}
-                    </span>
+                    />
                   )}
                 </button>
               )
@@ -1102,7 +1161,7 @@ function WorkoutDetail({ record, onEdit, onDelete }) {
       <div className="flex items-start justify-between gap-3">
         <div>
           <span className="inline-flex rounded-sm bg-primary px-2 py-1 text-xs font-semibold text-primary-foreground">
-            {record.type}
+            {getWorkoutTypeLabel(record)}
           </span>
           <h2 className="mt-3 font-display text-3xl font-semibold leading-none tracking-wide sm:text-4xl">{record.date}</h2>
         </div>
@@ -1115,7 +1174,7 @@ function WorkoutDetail({ record, onEdit, onDelete }) {
           </Button>
         </div>
       </div>
-      <InfoBlock title="训练计划" value={record.plan} />
+      <PlanBlocks record={record} />
       <InfoBlock title="训练成绩" value={record.result} />
       <InfoBlock title="备注" value={record.notes} />
     </div>
@@ -1131,6 +1190,30 @@ function InfoBlock({ title, value }) {
   )
 }
 
+function PlanBlocks({ record }) {
+  const types = getWorkoutTypes(record)
+  const parts = getWorkoutPlanParts(record)
+  const visibleTypes = types.filter((type) => parts[type]?.trim())
+
+  if (!visibleTypes.length) {
+    return <InfoBlock title="训练计划" value={record.plan} />
+  }
+
+  return (
+    <div className="grid gap-2">
+      <div className="text-xs font-semibold text-muted-foreground">训练计划</div>
+      {visibleTypes.map((type) => (
+        <div key={type} className="rounded-md border border-white/12 bg-muted/35 p-3 ring-1 ring-white/5">
+          <div className="mb-2 inline-flex rounded-sm bg-primary/12 px-2 py-1 text-xs font-semibold text-primary">
+            {type}
+          </div>
+          <div className="whitespace-pre-wrap text-sm leading-6">{parts[type]}</div>
+        </div>
+      ))}
+    </div>
+  )
+}
+
 function RecordList({ records, onEdit, onDelete }) {
   if (!records.length) {
     return <p className="text-sm text-muted-foreground">暂无历史记录。</p>
@@ -1141,7 +1224,7 @@ function RecordList({ records, onEdit, onDelete }) {
         <div key={record.id} className="rounded-md border border-white/12 bg-card p-3 ring-1 ring-white/5">
           <div className="flex items-start justify-between gap-3">
             <div>
-              <div className="text-xs font-semibold text-primary">{record.type}</div>
+              <div className="text-xs font-semibold text-primary">{getWorkoutTypeLabel(record)}</div>
               <div className="font-semibold">{record.date}</div>
               <div className="line-clamp-2 text-sm text-muted-foreground">{record.result || record.plan}</div>
             </div>
@@ -1216,13 +1299,53 @@ function EmptyState({ title, text, actionLabel, onAction }) {
 }
 
 function WorkoutDialog({ open, record, onOpenChange, onSave }) {
-  const [form, setForm] = useState(record || blankWorkout(todayISO()))
+  const [form, setForm] = useState(() => normalizeWorkoutForm(record || blankWorkout(todayISO())))
 
   React.useEffect(() => {
-    if (record) setForm(record)
+    if (record) setForm(normalizeWorkoutForm(record))
   }, [record])
 
   const update = (field, value) => setForm((prev) => ({ ...prev, [field]: value }))
+  const updatePlanPart = (type, value) =>
+    setForm((prev) => ({
+      ...prev,
+      planParts: {
+        ...prev.planParts,
+        [type]: value,
+      },
+    }))
+  const toggleType = (type) => {
+    setForm((prev) => {
+      const current = getWorkoutTypes(prev)
+      const nextTypes =
+        type === restType
+          ? current.includes(restType)
+            ? []
+            : [restType]
+          : current.includes(type)
+            ? current.filter((item) => item !== type)
+            : [...current.filter((item) => item !== restType), type]
+
+      return {
+        ...prev,
+        type: nextTypes.length ? nextTypes : ["WOD"],
+      }
+    })
+  }
+  const submit = () => {
+    const types = getWorkoutTypes(form)
+    const activePlanParts = types.reduce((parts, type) => {
+      parts[type] = form.planParts?.[type] || ""
+      return parts
+    }, {})
+    onSave({
+      ...form,
+      type: types,
+      planParts: activePlanParts,
+      plan: flattenPlanParts(activePlanParts, types),
+    })
+  }
+  const selectedTypes = getWorkoutTypes(form)
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -1234,22 +1357,40 @@ function WorkoutDialog({ open, record, onOpenChange, onSave }) {
           <Field label="日期">
             <Input type="date" value={form.date} onChange={(event) => update("date", event.target.value)} />
           </Field>
-          <Field label="训练类型">
-            <select
-              className="h-11 rounded-md border border-input bg-muted px-3 text-base text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:h-10 sm:text-sm"
-              value={form.type}
-              onChange={(event) => update("type", event.target.value)}
-            >
-              {workoutTypes.map((type) => (
-                <option key={type} value={type}>
-                  {type}
-                </option>
-              ))}
-            </select>
+          <Field label="训练类型（可多选）">
+            <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+              {workoutTypes.map((type) => {
+                const active = selectedTypes.includes(type)
+                return (
+                  <button
+                    key={type}
+                    type="button"
+                    onClick={() => toggleType(type)}
+                    className={cn(
+                      "min-h-11 rounded-md border border-input bg-muted px-3 py-2 text-sm font-semibold text-muted-foreground transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                      active && "border-primary bg-primary text-primary-foreground",
+                    )}
+                  >
+                    {type}
+                  </button>
+                )
+              })}
+            </div>
           </Field>
-          <Field label="训练计划">
-            <Textarea value={form.plan} onChange={(event) => update("plan", event.target.value)} rows={4} />
-          </Field>
+          <div className="grid gap-3">
+            <Label>训练计划（按类型分开填写）</Label>
+            {selectedTypes.map((type) => (
+              <div key={type} className="rounded-md border border-white/12 bg-muted/25 p-3 ring-1 ring-white/5">
+                <div className="mb-2 text-sm font-semibold text-primary">{type}</div>
+                <Textarea
+                  value={form.planParts?.[type] || ""}
+                  onChange={(event) => updatePlanPart(type, event.target.value)}
+                  placeholder={type === "力量" ? "例如：背蹲 5x5 @ 80kg" : "输入这一部分的训练计划"}
+                  rows={type === restType ? 2 : 4}
+                />
+              </div>
+            ))}
+          </div>
           <Field label="训练成绩">
             <Textarea value={form.result} onChange={(event) => update("result", event.target.value)} rows={3} />
           </Field>
@@ -1261,7 +1402,7 @@ function WorkoutDialog({ open, record, onOpenChange, onSave }) {
           <Button variant="outline" onClick={() => onOpenChange(false)}>
             取消
           </Button>
-          <Button onClick={() => onSave(form)}>保存</Button>
+          <Button onClick={submit}>保存</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
@@ -1342,7 +1483,8 @@ function blankWorkout(date) {
   return {
     id: "",
     date,
-    type: "WOD",
+    type: ["WOD"],
+    planParts: { WOD: "" },
     plan: "",
     result: "",
     notes: "",
