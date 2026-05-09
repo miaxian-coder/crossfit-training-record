@@ -60,6 +60,33 @@ const getAuthRedirectUrl = () => {
 
 const workoutTypes = ["WOD", "力量", "技术", "有氧", "Rest Day"]
 const restType = "Rest Day"
+const workoutTypeMeta = {
+  WOD: {
+    label: "WOD",
+    emoji: "🔥",
+    calendarClass: "border-primary/35 bg-primary/15 text-primary",
+  },
+  力量: {
+    label: "力量",
+    emoji: "🏋️",
+    calendarClass: "border-primary/45 bg-primary/20 text-primary",
+  },
+  技术: {
+    label: "技术",
+    emoji: "🎯",
+    calendarClass: "border-secondary/35 bg-secondary/15 text-secondary",
+  },
+  有氧: {
+    label: "有氧",
+    emoji: "🏃",
+    calendarClass: "border-secondary/45 bg-secondary/20 text-secondary",
+  },
+  [restType]: {
+    label: "Rest",
+    emoji: "😴",
+    calendarClass: "border-white/14 bg-muted text-muted-foreground",
+  },
+}
 const defaultMovements = [
   { movement: "实力推", category: "推举" },
   { movement: "借力推", category: "推举" },
@@ -117,6 +144,19 @@ function getWorkoutTypes(record) {
 function getWorkoutTypeLabel(record) {
   const types = getWorkoutTypes(record)
   return types.length ? types.join(" / ") : "未分类"
+}
+
+function getWorkoutTypeMeta(type) {
+  return workoutTypeMeta[type] || {
+    label: type || "未分类",
+    emoji: "•",
+    calendarClass: "border-white/14 bg-muted text-muted-foreground",
+  }
+}
+
+function isRestRecord(record) {
+  const types = getWorkoutTypes(record)
+  return types.length === 1 && types[0] === restType
 }
 
 function getWorkoutPlanParts(record) {
@@ -665,6 +705,8 @@ function CalendarPage({ records, setRecords }) {
           <div className="grid grid-cols-7 gap-1 sm:gap-2">
             {days.map((day) => {
               const record = recordByDate[day.iso]
+              const restDay = isRestRecord(record)
+              const selected = selectedDate === day.iso
               return (
                 <button
                   key={day.iso}
@@ -673,23 +715,19 @@ function CalendarPage({ records, setRecords }) {
                     "flex min-h-14 touch-manipulation flex-col justify-between rounded-md border border-white/12 bg-card p-1.5 text-left ring-1 ring-white/5 transition hover:border-primary sm:min-h-24 sm:p-2",
                     !day.inMonth && "opacity-35",
                     day.iso === todayISO() && "border-2 border-secondary",
-                    selectedDate === day.iso && "border-primary bg-primary text-primary-foreground",
+                    record && !restDay && !selected && "border-primary/35 bg-primary/5",
+                    restDay && !selected && "border-white/14 bg-muted/40 text-muted-foreground",
+                    selected && !restDay && "border-primary bg-primary text-primary-foreground",
+                    selected && restDay && "border-secondary bg-muted text-foreground",
                   )}
                 >
                   <span className="block text-sm font-semibold leading-none">{day.date.getDate()}</span>
-                  {record && (
-                    <span
-                      aria-label={getWorkoutTypeLabel(record)}
-                      className={cn(
-                        "mt-auto block h-1.5 w-full rounded-full",
-                        selectedDate === day.iso ? "bg-background/30" : "bg-primary/80",
-                      )}
-                    />
-                  )}
+                  {record && <CalendarTypeIcons record={record} selected={selected} />}
                 </button>
               )
             })}
           </div>
+          <CalendarLegend />
         </CardContent>
       </Card>
 
@@ -722,6 +760,66 @@ function CalendarPage({ records, setRecords }) {
         onSave={handleSave}
       />
     </section>
+  )
+}
+
+function CalendarTypeIcons({ record, selected }) {
+  const types = getWorkoutTypes(record)
+  const visibleTypes = types.slice(0, 3)
+  const restDay = isRestRecord(record)
+
+  return (
+    <div className="mt-auto flex flex-wrap gap-1" aria-label={getWorkoutTypeLabel(record)}>
+      {visibleTypes.map((type) => {
+        const meta = getWorkoutTypeMeta(type)
+        return (
+          <span
+            key={type}
+            title={meta.label}
+            className={cn(
+              "inline-flex h-5 w-5 items-center justify-center rounded-full border text-[12px] leading-none",
+              selected
+                ? restDay
+                  ? "border-secondary/50 bg-secondary/15 text-secondary"
+                  : "border-background/20 bg-background/25 text-primary-foreground"
+                : meta.calendarClass,
+            )}
+          >
+            {meta.emoji}
+          </span>
+        )
+      })}
+      {types.length > visibleTypes.length && (
+        <span
+          className={cn(
+            "inline-flex h-5 min-w-5 items-center justify-center rounded-full border px-1 text-[10px] font-semibold leading-none",
+            selected
+              ? "border-background/20 bg-background/25 text-primary-foreground"
+              : "border-white/14 bg-muted text-muted-foreground",
+          )}
+        >
+          +{types.length - visibleTypes.length}
+        </span>
+      )}
+    </div>
+  )
+}
+
+function CalendarLegend() {
+  return (
+    <div className="mt-4 flex gap-2 overflow-x-auto pb-1 text-xs text-muted-foreground">
+      {workoutTypes.map((type) => {
+        const meta = getWorkoutTypeMeta(type)
+        return (
+          <div key={type} className="flex shrink-0 items-center gap-1.5 rounded-full border border-white/12 bg-muted/30 px-2 py-1">
+            <span className={cn("inline-flex h-5 w-5 items-center justify-center rounded-full border text-[12px] leading-none", meta.calendarClass)}>
+              {meta.emoji}
+            </span>
+            <span>{meta.label}</span>
+          </div>
+        )
+      })}
+    </div>
   )
 }
 
