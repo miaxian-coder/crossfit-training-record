@@ -389,10 +389,9 @@ function App() {
   const stats = useMemo(() => {
     const monthKey = todayISO().slice(0, 7)
     const monthlyTraining = trainingRecords.filter((item) => item.date?.startsWith(monthKey))
-    const monthlyPr = prRecords.filter((item) => item.date?.startsWith(monthKey))
     const completed = monthlyTraining.filter((item) => !getWorkoutTypes(item).includes(restType)).length
     const rest = monthlyTraining.filter((item) => getWorkoutTypes(item).includes(restType)).length
-    const prCount = monthlyPr.length
+    const prCount = new Set(prRecords.map((item) => item.movement).filter(Boolean)).size
     return { completed, rest, prCount, monthLabel: formatMonthLabel(monthKey) }
   }, [trainingRecords, prRecords])
 
@@ -453,17 +452,24 @@ function AppShell({ children, page, onPageChange, stats, sync }) {
               {sync.session?.user?.email || "手机/桌面共用"}
             </span>
           </button>
-          <div className="rounded-lg border border-white/12 bg-card p-2 ring-1 ring-white/5">
-            <div className="mb-2 flex items-center justify-between px-1">
-              <span className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">
-                当月概览
-              </span>
-              <span className="text-sm font-semibold text-foreground">{stats.monthLabel}</span>
+          <div className="grid grid-cols-[1fr_8rem] gap-2">
+            <div className="rounded-lg border border-white/12 bg-card p-2 ring-1 ring-white/5">
+              <div className="mb-2 flex items-center justify-between px-1">
+                <span className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+                  当月概览
+                </span>
+                <span className="text-sm font-semibold text-foreground">{stats.monthLabel}</span>
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <Metric label="训练" value={stats.completed} compact />
+                <Metric label="休息" value={stats.rest} compact />
+              </div>
             </div>
-            <div className="grid grid-cols-3 gap-2">
-              <Metric label="训练" value={stats.completed} compact />
-              <Metric label="休息" value={stats.rest} compact />
-              <Metric label="PR" value={stats.prCount} compact />
+            <div className="rounded-lg border border-white/12 bg-card p-2 ring-1 ring-white/5">
+              <div className="mb-2 px-1 text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+                总计
+              </div>
+              <Metric label="PR 动作" value={stats.prCount} compact />
             </div>
           </div>
         </div>
