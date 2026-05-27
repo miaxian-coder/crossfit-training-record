@@ -159,6 +159,16 @@ function isRestRecord(record) {
   return types.length === 1 && types[0] === restType
 }
 
+function getElapsedDaysInMonth(monthKey, today = todayISO()) {
+  const [year, month] = monthKey.split("-").map(Number)
+  if (!year || !month) return 0
+
+  const currentMonthKey = today.slice(0, 7)
+  if (monthKey === currentMonthKey) return Number(today.slice(8, 10))
+  if (monthKey < currentMonthKey) return new Date(year, month, 0).getDate()
+  return 0
+}
+
 function getWorkoutPlanParts(record) {
   if (record?.planParts && typeof record.planParts === "object") {
     return record.planParts
@@ -429,8 +439,14 @@ function App() {
   const stats = useMemo(() => {
     const monthKey = todayISO().slice(0, 7)
     const monthlyTraining = trainingRecords.filter((item) => item.date?.startsWith(monthKey))
-    const completed = monthlyTraining.filter((item) => !getWorkoutTypes(item).includes(restType)).length
-    const rest = monthlyTraining.filter((item) => getWorkoutTypes(item).includes(restType)).length
+    const completedDates = new Set(
+      monthlyTraining
+        .filter((item) => !isRestRecord(item))
+        .map((item) => item.date)
+        .filter(Boolean),
+    )
+    const completed = completedDates.size
+    const rest = Math.max(0, getElapsedDaysInMonth(monthKey) - completed)
     const prCount = new Set(prRecords.map((item) => item.movement).filter(Boolean)).size
     return { completed, rest, prCount, monthLabel: formatMonthLabel(monthKey) }
   }, [trainingRecords, prRecords])
